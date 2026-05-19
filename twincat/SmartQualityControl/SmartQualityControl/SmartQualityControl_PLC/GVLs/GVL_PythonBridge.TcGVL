@@ -1,0 +1,26 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.6">
+  <GVL Name="GVL_PythonBridge" Id="{67794344-ebb7-4c5a-9a80-66618ee60562}">
+    <Declaration><![CDATA[VAR_GLOBAL
+    // Python - PLC
+    Start_Button        : BOOL;
+    Emergency_Stop      : BOOL;
+    Product_Sensor      : BOOL;
+    Product_Defective   : BOOL;
+    Stop_Line           : BOOL;
+    Defect_Rate         : REAL;
+
+    // PLC - Python
+    Line_Running        : BOOL;
+    Total_Count         : INT;
+    Defect_Count        : INT;
+
+    // Outputs
+    Belt_Motor          : BOOL;
+    Reject_Cylinder     : BOOL;
+    Green_Light         : BOOL;
+    Red_Light           : BOOL;
+    Alarm_Buzzer        : BOOL;
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

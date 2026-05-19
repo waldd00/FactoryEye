@@ -1,0 +1,65 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.6">
+  <POU Name="MAIN" Id="{90f779cf-5131-4f59-b3ae-b4a7dbcdb6b3}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM MAIN
+VAR
+    Timer_Inspection    : TON;
+    Counter_Total       : CTU;
+    Counter_Defect      : CTU;
+    Product_Sensor_Rise : R_TRIG;
+    Defect_Rise         : R_TRIG;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[// --- Belt Motor Control ---
+IF (GVL_PythonBridge.Start_Button OR GVL_PythonBridge.Belt_Motor)
+   AND NOT GVL_PythonBridge.Emergency_Stop
+   AND NOT GVL_PythonBridge.Stop_Line THEN
+    GVL_PythonBridge.Belt_Motor   := TRUE;
+    GVL_PythonBridge.Line_Running := TRUE;
+ELSE
+    GVL_PythonBridge.Belt_Motor   := FALSE;
+    GVL_PythonBridge.Line_Running := FALSE;
+END_IF;
+
+// --- Inspection Timer ---
+Timer_Inspection(IN := GVL_PythonBridge.Product_Sensor AND GVL_PythonBridge.Belt_Motor, PT := T#2S);
+
+// --- Reject Cylinder ---
+GVL_PythonBridge.Reject_Cylinder := Timer_Inspection.Q AND GVL_PythonBridge.Product_Defective;
+
+// --- Indicator Lights ---
+GVL_PythonBridge.Green_Light  := GVL_PythonBridge.Belt_Motor;
+GVL_PythonBridge.Red_Light    := GVL_PythonBridge.Stop_Line;
+GVL_PythonBridge.Alarm_Buzzer := GVL_PythonBridge.Stop_Line;
+
+// --- Product Counter ---
+Product_Sensor_Rise(CLK := GVL_PythonBridge.Product_Sensor);
+Counter_Total.CU := Product_Sensor_Rise.Q;
+Counter_Total.PV := 9999;
+Counter_Total();
+GVL_PythonBridge.Total_Count := Counter_Total.CV;
+
+// --- Defect Counter ---
+Defect_Rise(CLK := GVL_PythonBridge.Product_Defective);
+Counter_Defect.CU := Defect_Rise.Q;
+Counter_Defect.PV := 9999;
+Counter_Defect();
+GVL_PythonBridge.Defect_Count := Counter_Defect.CV;
+
+// --- Auto Stop ---
+IF GVL_PythonBridge.Defect_Rate >= 10.0 THEN
+    GVL_PythonBridge.Stop_Line := TRUE;
+END_IF;
+IF GVL_PythonBridge.Start_Button AND GVL_PythonBridge.Stop_Line THEN
+    GVL_PythonBridge.Stop_Line := FALSE;
+END_IF;]]></ST>
+    </Implementation>
+    <LineIds Name="MAIN">
+      <LineId Id="100" Count="21" />
+      <LineId Id="144" Count="11" />
+      <LineId Id="136" Count="7" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>
