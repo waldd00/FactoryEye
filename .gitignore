@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+
+# Models & weights — download via setup_model.py
+models/*.pt
+yolov8n.pt
+
+# Training output
+runs/
+datasets/
+
+# Generated reports
+*.pdf
+
+# IDE
+.vscode/
+.idea/
+
+# TwinCAT build artifacts
+twincat/**/_Boot/
+twincat/**/_Libraries/
+twincat/**/_CompileInfo/
+*.compiled-library
+*.bak
+*.~u
+
+# OS
+Thumbs.db
+.DS_Store

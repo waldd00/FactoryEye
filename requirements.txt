@@ -1,0 +1,9 @@
+# pyads requires TwinCAT 3 runtime — skip if using mock mode only
+# pip install pyads
+ultralytics
+opencv-python
+python-dotenv
+google-genai
+PyQt5
+matplotlib
+fpdf2
