@@ -120,6 +120,78 @@ Get a free key at [aistudio.google.com](https://aistudio.google.com). The agent 
 
 ---
 
+## PLC Control Algorithm
+
+The heart of FactoryEye is the Structured Text program running on TwinCAT 3 (`MAIN.TcPOU`). It implements a complete production line control sequence following IEC 61131-3 conventions.
+
+### Belt Motor Interlock
+
+```iecst
+IF (GVL_PythonBridge.Start_Button OR GVL_PythonBridge.Belt_Motor)
+   AND NOT GVL_PythonBridge.Emergency_Stop
+   AND NOT GVL_PythonBridge.Stop_Line THEN
+    GVL_PythonBridge.Belt_Motor   := TRUE;
+    GVL_PythonBridge.Line_Running := TRUE;
+ELSE
+    GVL_PythonBridge.Belt_Motor   := FALSE;
+    GVL_PythonBridge.Line_Running := FALSE;
+END_IF;
+```
+
+The belt motor uses a latching interlock: once started, `Belt_Motor` holds itself ON until either an emergency stop or a stop-line command is received. Priority order is Emergency > Stop_Line > Start — standard industrial safety practice.
+
+### Inspection Timer & Reject Cylinder
+
+```iecst
+Timer_Inspection(IN := GVL_PythonBridge.Product_Sensor AND GVL_PythonBridge.Belt_Motor,
+                 PT := T#2S);
+
+GVL_PythonBridge.Reject_Cylinder := Timer_Inspection.Q AND GVL_PythonBridge.Product_Defective;
+```
+
+A `TON` (on-delay timer) starts when a part is detected on the belt. The reject cylinder fires only when the timer completes **and** the vision system has flagged the part as defective. This 2-second window gives Python time to complete YOLO inference before the rejection decision is made — the PLC and the vision pipeline are intentionally synchronized through this timer.
+
+### Rising-Edge Counters
+
+```iecst
+Product_Sensor_Rise(CLK := GVL_PythonBridge.Product_Sensor);
+Counter_Total.CU := Product_Sensor_Rise.Q;
+Counter_Total();
+GVL_PythonBridge.Total_Count := Counter_Total.CV;
+
+Defect_Rise(CLK := GVL_PythonBridge.Product_Defective);
+Counter_Defect.CU := Defect_Rise.Q;
+Counter_Defect();
+GVL_PythonBridge.Defect_Count := Counter_Defect.CV;
+```
+
+`R_TRIG` blocks detect the rising edge of each signal so that a part held in the sensor field is counted exactly once, not on every scan cycle. Both counters (`CTU`) are read back by Python over ADS and displayed on the dashboard.
+
+### Auto-Stop & Manual Reset
+
+```iecst
+IF GVL_PythonBridge.Defect_Rate >= 10.0 THEN
+    GVL_PythonBridge.Stop_Line := TRUE;
+END_IF;
+IF GVL_PythonBridge.Start_Button AND GVL_PythonBridge.Stop_Line THEN
+    GVL_PythonBridge.Stop_Line := FALSE;
+END_IF;
+```
+
+When the defect rate (written by Python) reaches the 10% threshold the PLC stops the line autonomously — independent of Python. The operator must press Start again to clear the stop latch, preventing automatic restart after a fault.
+
+### Output Map
+
+| Output | Condition |
+|---|---|
+| `Belt_Motor` | Line running (no stop, no emergency) |
+| `Reject_Cylinder` | Inspection timer elapsed AND part defective |
+| `Green_Light` | Belt motor ON |
+| `Red_Light` | Stop_Line active |
+| `Alarm_Buzzer` | Stop_Line active |
+
+---
+
 ## TwinCAT Integration
 
 > Requires Beckhoff TwinCAT 3 Runtime and an XAR license.
@@ -132,7 +204,7 @@ Get a free key at [aistudio.google.com](https://aistudio.google.com). The agent 
 python python/dashboard.py
 ```
 
-The Python bridge reads/writes the following GVL variables over ADS:
+Python communicates with the PLC over the ADS protocol (`pyads`). All shared state lives in `GVL_PythonBridge` — a Global Variable List visible to both the ST program and the Python bridge:
 
 | Variable | Direction | Purpose |
 |---|---|---|
@@ -143,7 +215,7 @@ The Python bridge reads/writes the following GVL variables over ADS:
 | `GVL_PythonBridge.Defect_Rate` | Python → PLC | Current defect % |
 | `GVL_PythonBridge.Line_Running` | PLC → Python | Line status |
 | `GVL_PythonBridge.Total_Count` | PLC → Python | Total products |
-| `GVL_PythonBridge.Defect_Count` | PLC → Python | Defective count |
+| `GVL_PythonBridge.Defect_Count` | PLC → Python | Defective products |
 
 ---
 
